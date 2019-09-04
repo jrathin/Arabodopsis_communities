@@ -1,0 +1,120 @@
+---
+title: "Communities - K-Shell Clustering"
+output: html_document
+---
+
+#DataSets
+
+1.Tissue Data : RNAseq data from TravaDB (http://travadb.org/) 
+
+In Restricted subgraph construction, non-simple edges (Self-Loops) are Removed
+
+```{r}
+source("Generic.R")
+
+df = read_excel("TravaDB.xlsx", sheet = 1) #Tissue Data 
+base = read_excel("Network_Cutoff_Backup.xlsx") #Interaction Data
+map = read_excel("Mapping.xlsx")  #ATG Name vs Gene Mapping
+conf = read_excel("Known_LRR-RLKs.xlsx") #Data of ATGs with possible funcitionalites (immune) with a confidence level (1 - less confidence, 2 - more confidence)
+base = data_norm(base, base = TRUE) #Normalizing Data Frame Title
+base = mapper(base, map)  #Mapping Gene Nicknames to ATG Names
+g = graph_from_data_frame(base, directed = FALSE, vertices = NULL)  #Constructing Interaction Network using igraph
+
+df_wr = data.frame(Gene = df$Gene, Value = (df$`Root (R )...7` + df$`Root (R )...76`)/2) #Whole Root
+sg_wr = rest_subgraph(g, base, df_wr, 1, T)
+
+df_ml = data.frame(Gene = df$Gene, Value = (df$`Leaf, mature (L.lg)...87` + df$`Leaf, mature (L.lg)...18`)/2) # Mature Leaf
+sg_ml = rest_subgraph(g, base, df_ml, 1, T)
+
+df_yc = data.frame(Gene = df$Gene, Value = (df$`Carpels of the young flower (F.CA.y)...27` + df$`Carpels of the young flower (F.CA.y)...96`)/2) # Young Carpels
+sg_yc = rest_subgraph(g, base, df_yc, 1, T)
+
+df_ya = data.frame(Gene = df$Gene, Value = (df$`Anthers of the young flower (F.AN.y)...28` + df$`Anthers of the young flower (F.AN.y)...97`)/2) # Young Anthers
+sg_ya = rest_subgraph(g, base, df_ya, 1, T)
+
+df_st = data.frame(Gene = df$Gene, Value = (df$`Stigmatic tissue (STI)...61` + df$`Stigmatic tissue (STI)...130`)/2) #Stigmatic Tissue
+sg_st = rest_subgraph(g, base, df_st, 1, T)
+
+df_o67 = data.frame(Gene = df$Gene, Value = (df$`Ovules from 6th and 7th flowers (OV.y6-7)...60` + df$`Ovules from 6th and 7th flowers (OV.y6-7)...129`)/2) #Ovules of Flowers 6 and 7
+sg_o67 = rest_subgraph(g, base, df_o67, 1, T)
+
+#df_seeds = data.frame(Gene = df$Gene, Value = (df$`Seeds 7 (SD7)...121` + df$`Seeds 1 (SD1)...43` + df$`Seeds 3 (SD3)...46` + df$`Seeds 5 (SD5)...49` + df$`Seeds 7 (SD7)...52` + df$`Seeds 1 (SD1)...112` + df$`Seeds 3 (SD3)...115` + df$`Seeds 5 (SD5)...118`)/8) #Seeds 1,3,5,7
+#sg_seeds = rest_subgraph(g, base, df_seeds, 1, T)
+
+``` 
+
+```{r}
+#Whole Root - Decomposition
+dec_wr = K_Shell_Dec(sg_wr)
+visPlot(dec_wr, coreness(dec_wr))
+```
+
+```{r}
+#Mature Leaf - Decomposition
+dec_ml = K_Shell_Dec(sg_ml)
+visPlot(dec_ml, coreness(dec_ml))
+```
+
+```{r}
+#Young Carpels - Decomposition
+dec_yc = K_Shell_Dec(sg_yc)
+visPlot(dec_yc, coreness(dec_yc))
+```
+
+```{r}
+#Young Anthers - Decomposition
+dec_ya = K_Shell_Dec(sg_ya)
+visPlot(dec_ya, coreness(dec_ya))
+```
+
+```{r}
+#Whole Stigmatic Tissue - Decomposition
+dec_st = K_Shell_Dec(sg_st)
+visPlot(dec_st, coreness(dec_st))
+```
+
+```{r}
+#Whole Ovules of FLowers 6 and 7 - Decomposition
+dec_o67 = K_Shell_Dec(sg_o67)
+visPlot(dec_o67, coreness(dec_o67))
+```
+
+Infection Data
+
+1. Infection Data : RNAseq data of Arabidopsis thaliana infected with Pseudomonas syringae pv tomato. Timesteps at 1hr, 6hrs and 12hrs with mock, virulent and avirulent strains. Read data is in FPKM. (https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0074183#s5)
+
+```{r}
+df = read_excel("infection_data.xlsx", sheet = 2) #Infection Data
+#Averaging over biological replicates (Strong Correlation)
+mock_1 = (df$Sample_1 + df$Sample_13)/2
+mock_6 = (df$Sample_7 + df$Sample_19)/2
+mock_12 = (df$Sample_10 + df$Sample_22)/2
+avir_1 = (df$Sample_2 + df$Sample_14)/2
+avir_6 = (df$Sample_8 + df$Sample_20)/2
+avir_12 = (df$Sample_11 + df$Sample_23)/2
+vir_1 = (df$Sample_3 + df$Sample_15)/2
+vir_6 = (df$Sample_9 + df$Sample_21)/2
+vir_12 = (df$Sample_12 + df$Sample_24)/2
+av_df = data_frame(Gene = toupper(df$Gene), mock_1 = mock_1, mock_6 = mock_6, mock_12 = mock_12, avir_1 = avir_1, avir_6 = avir_6, avir_12 = avir_12, vir_1 = vir_1, vir_6 = vir_6, vir_12 = vir_12)
+
+#Construct Graphs
+sg_m1 = rest_subgraph_g(g, base, av_df[,c(1,2)], 1, T)
+sg_m6 = rest_subgraph_g(g, base, av_df[,c(1,3)], 1, T)
+sg_m12 = rest_subgraph_g(g, base, av_df[,c(1,4)], 1, T)
+
+sg_v1 = rest_subgraph_g(g, base, av_df[,c(1,8)], 1, T)
+sg_v6 = rest_subgraph_g(g, base, av_df[,c(1,9)], 1, T)
+sg_v12 = rest_subgraph_g(g, base, av_df[,c(1,10)], 1, T)
+```
+
+```{r}
+#Mock at TS 1 - Decomposition
+dec_m1 = K_Shell_Dec(sg_m1)
+visPlot(dec_m1, coreness(dec_m1))
+```
+
+```{r}
+#Virulent at TS 1 - Decomposition
+dec_v1 = K_Shell_Dec(sg_v1)
+visPlot(dec_v1, coreness(dec_v1))
+```

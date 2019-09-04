@@ -1,0 +1,108 @@
+---
+title: "Communities"
+output: html_document
+---
+
+#DataSets
+
+1. RNAseq data of Arabidopsis thaliana infected with Pseudomonas syringae pv tomato. Timesteps between 1hr to 24hrs. Data is in raw read counts. (https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE88798)
+
+2. RNAseq data of Arabidopsis thaliana infected with Pseudomonas syringae pv tomato. Timesteps at 1hr, 6hrs and 12hrs with mock, virulent and avirulent strains. Read data is in FPKM. (https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0074183#s5)
+
+```{r}
+source("Generic.R")
+
+df_t = read_excel("TravaDB.xlsx", sheet = 1) #Tissue Data 
+base = read_excel("Network_Cutoff_Backup.xlsx") #Interaction Data
+map = read_excel("Mapping.xlsx")  #ATG Name vs Gene Mapping
+conf = read_excel("Known_LRR-RLKs.xlsx") #Data of ATGs with possible funcitionalites (immune) with a confidence level (1 - less confidence, 2 - more confidence)
+base = data_norm(base, base = TRUE) #Normalizing Data Frame Title
+base = mapper(base, map)  #Mapping Gene Nicknames to ATG Names
+g = graph_from_data_frame(base, directed = FALSE, vertices = NULL)  #Constructing Interaction Network using igraph
+
+
+df = read_excel("infection_data.xlsx", sheet = 2) #Infection Data
+#Averaging over biological replicates (Strong Correlation)
+mock_1 = (df$Sample_1 + df$Sample_13)/2
+mock_6 = (df$Sample_7 + df$Sample_19)/2
+mock_12 = (df$Sample_10 + df$Sample_22)/2
+avir_1 = (df$Sample_2 + df$Sample_14)/2
+avir_6 = (df$Sample_8 + df$Sample_20)/2
+avir_12 = (df$Sample_11 + df$Sample_23)/2
+vir_1 = (df$Sample_3 + df$Sample_15)/2
+vir_6 = (df$Sample_9 + df$Sample_21)/2
+vir_12 = (df$Sample_12 + df$Sample_24)/2
+
+av_df = data_frame(Gene = toupper(df$Gene), mock_1 = mock_1, mock_6 = mock_6, mock_12 = mock_12, avir_1 = avir_1, avir_6 = avir_6, avir_12 = avir_12, vir_1 = vir_1, vir_6 = vir_6, vir_12 = vir_12)
+df_v = read.table("RCT.txt", header = T) #Infection Data Validation
+
+df_in = data.frame(Gene = df_v$Gene)
+df_in$inf_1 = (df_v$x01_Col_02_EV_01h_rep01+df_v$x01_Col_02_EV_01h_rep02+df_v$x01_Col_02_EV_01h_rep03)/3
+df_in$inf_3 = (df_v$x01_Col_02_EV_03h_rep01+df_v$x01_Col_02_EV_03h_rep02+df_v$x01_Col_02_EV_03h_rep03)/3
+df_in$inf_6 = (df_v$x01_Col_02_EV_06h_rep01+df_v$x01_Col_02_EV_06h_rep02+df_v$x01_Col_02_EV_06h_rep03)/3
+df_in$inf_9 = (df_v$x01_Col_02_EV_09h_rep01+df_v$x01_Col_02_EV_09h_rep02+df_v$x01_Col_02_EV_09h_rep03)/3
+df_in$inf_12 = (df_v$x01_Col_02_EV_12h_rep01+df_v$x01_Col_02_EV_12h_rep02+df_v$x01_Col_02_EV_12h_rep03)/3
+df_in$inf_16 = (df_v$x01_Col_02_EV_16h_rep01+df_v$x01_Col_02_EV_16h_rep02+df_v$x01_Col_02_EV_16h_rep03)/3
+df_in$inf_24 = (df_v$x01_Col_02_EV_24h_rep01+df_v$x01_Col_02_EV_24h_rep02+df_v$x01_Col_02_EV_24h_rep03)/3
+```
+
+```{r}
+#Create iGraph objects from infection data 1
+graph_list1 = list()
+for (i in 2:8){
+  
+  graph_list1 = c(graph_list1, list(rest_subgraph_g(g, base, df_in[, c(1,i)], 1)))
+}
+```
+
+```{r}
+#Create iGraph objects from infection data 2
+graph_list2 = list()
+for (i in 2:4){
+  
+  graph_list2 = c(graph_list2, list(rest_subgraph_g(g, base, av_df[, c(1,i+6)], 1)))
+}
+```
+
+```{r}
+#Ego Networks rooted at BAK1 (Order 1) (Infection Data 1)
+ego_inf1 = list()
+for (i in 1:length(graph_list1)){
+  ego_inf1 = c(ego_inf1, make_ego_graph(graph_list1[[i]], nodes = c('AT4G33430'), order = 1))
+}
+```
+
+```{r}
+#Ego Networks Plot
+visPlot(ego_inf1[[1]]) #Replace 1 with n = 1,..,7
+```
+
+
+```{r}
+#Difference Plots of Core Ego Network around BAK1 over different Timesteps (Data 1)
+plt = diff_plot(ego_inf1[[1]], ego_inf1[[2]]) #Replace 1,2 with combinations till n=7
+visPlot2(plt, E(plt)$type1)
+```
+
+
+
+```{r}
+#Ego Networks rooted at BAK1 (Order 1) (Infection Data 2)
+ego_inf2 = list()
+for (i in 1:length(graph_list2)){
+  ego_inf2 = c(ego_inf2, make_ego_graph(graph_list2[[i]], nodes = c('AT4G33430'), order = 1))
+}
+```
+
+```{r}
+#Ego Network Plot
+visPlot(ego_inf2[[1]]) #Replace 1 with n = 1,2,3
+```
+
+
+
+```{r}
+#Difference Plots of Core Ego Network around BAK1 over different Timesteps (Data 2)
+plt = diff_plot(ego_inf2[[2]], ego_inf2[[3]]) #Replace 1,2 with combinations upto n = 3
+visPlot2(plt, E(plt)$type1)
+```
